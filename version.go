@@ -1,9 +1,9 @@
-package ship
+package hub
 
 import "github.com/krewire/libs/core"
 
-// Version is the ship module version.
-var Version = core.MustParseVersion("0.0.0")
+// Version is the hub module version.
+var Version = core.MustParseVersion("0.1.0")
 
 // EcosystemRequires declares the minimum versions of other modules this version is compatible with.
 var EcosystemRequires = map[core.ModuleName]core.Version{
