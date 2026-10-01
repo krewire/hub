@@ -42,6 +42,17 @@ type Installer interface {
 	Remove(root string) error
 }
 
+// AssetProvider is the optional contract for a plugin whose Build writes
+// CSS/JS files into the output directory. The returned logical asset names
+// (e.g. "assets/tailwind.css") are declared to the site so `kiw build`
+// auto-injects the matching <link>/<script> tag — the developer never writes
+// the tag by hand.
+type AssetProvider interface {
+	Plugin
+	// Assets returns the logical asset paths this plugin produces for root.
+	Assets(root string) []string
+}
+
 // Registry holds all known plugins. Plugins self-register via init().
 var Registry []Plugin
 

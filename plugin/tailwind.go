@@ -78,6 +78,15 @@ func (t *Tailwind) Build(root, outDir string) error {
 	return nil
 }
 
+// Assets implements plugin.AssetProvider: Tailwind always emits
+// assets/tailwind.css, so `kiw build` links it without a manual <link> tag.
+func (t *Tailwind) Assets(root string) []string {
+	if _, err := os.Stat(filepath.Join(root, "assets", "tailwind.css")); err != nil {
+		return nil
+	}
+	return []string{"assets/tailwind.css"}
+}
+
 const tailwindConfigTemplate = `/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ["pages/**/*.kiw","components/**/*.kiw","layouts/**/*.kiw","content/**/*.md"],
