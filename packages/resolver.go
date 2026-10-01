@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/krewire/libs/core"
 	"github.com/krewire/hub/plugin"
+	"github.com/krewire/libs/core"
 )
 
 // Installer is the install/uninstall contract for a resolved package.
