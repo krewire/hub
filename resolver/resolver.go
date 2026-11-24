@@ -5,6 +5,9 @@ import (
 	"strings"
 
 	"github.com/krewire/hub/plugin"
+	_ "github.com/krewire/hub/svelte"
+	_ "github.com/krewire/hub/tailwind"
+	_ "github.com/krewire/hub/vue"
 	"github.com/krewire/krewire/version"
 )
 

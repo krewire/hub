@@ -1,4 +1,4 @@
-package plugin
+package svelte
 
 import (
 	"fmt"
@@ -8,23 +8,24 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/krewire/hub/plugin"
 	"github.com/krewire/krewire/version"
 )
 
 func init() {
-	Register(&Svelte{})
+	plugin.Register(&Svelte{})
 }
 
 const (
-	svelteConfigFile    = "svelte.config.js"
-	svelteNpmPackage    = "svelte"
-	sveltePluginPackage = "@sveltejs/vite-plugin-svelte"
-	svelteAssetJS       = "assets/svelte.js"
-	svelteAssetCSS      = "assets/svelte.css"
+	ConfigFile    = "svelte.config.js"
+	NpmPackage    = "svelte"
+	PluginPackage = "@sveltejs/vite-plugin-svelte"
+	AssetJS       = "assets/svelte.js"
+	AssetCSS      = "assets/svelte.css"
 )
 
-var svelteConfigFiles = []string{
-	svelteConfigFile,
+var ConfigFiles = []string{
+	ConfigFile,
 	"svelte.config.mjs",
 	"svelte.config.ts",
 	"svelte.config.cjs",
@@ -42,14 +43,12 @@ func (s *Svelte) Version() version.Version {
 }
 
 func (s *Svelte) Detect(root string) bool {
-	// 1. Check for Svelte config files
-	for _, name := range svelteConfigFiles {
+	for _, name := range ConfigFiles {
 		if _, err := os.Stat(filepath.Join(root, name)); err == nil {
 			return true
 		}
 	}
 
-	// 2. Check for package.json declaring svelte dependency
 	pkgPath := filepath.Join(root, "package.json")
 	if data, err := os.ReadFile(pkgPath); err == nil {
 		content := string(data)
@@ -58,9 +57,8 @@ func (s *Svelte) Detect(root string) bool {
 		}
 	}
 
-	// 3. Check for .svelte component files in standard source directories
 	candidateDirs := []string{"components", "src", "web", "pages"}
-	return hasExtInDirs(root, candidateDirs, ".svelte")
+	return plugin.HasExtInDirs(root, candidateDirs, ".svelte")
 }
 
 func (s *Svelte) Build(root, outDir string) error {
@@ -68,7 +66,7 @@ func (s *Svelte) Build(root, outDir string) error {
 		return nil
 	}
 
-	runners := buildViteCandidateCommands(root, outDir)
+	runners := plugin.BuildViteCandidateCommands(root, outDir)
 	var lastErr error
 	for _, args := range runners {
 		bin := args[0]
@@ -101,11 +99,11 @@ func (s *Svelte) Build(root, outDir string) error {
 
 func (s *Svelte) Assets(root string) []string {
 	var assets []string
-	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(svelteAssetJS))); err == nil {
-		assets = append(assets, svelteAssetJS)
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(AssetJS))); err == nil {
+		assets = append(assets, AssetJS)
 	}
-	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(svelteAssetCSS))); err == nil {
-		assets = append(assets, svelteAssetCSS)
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(AssetCSS))); err == nil {
+		assets = append(assets, AssetCSS)
 	}
 	return assets
 }
@@ -114,25 +112,25 @@ func (s *Svelte) Add(root, ver string) error {
 	if ver == "" || ver == "latest" {
 		ver = "latest"
 	}
-	pkg := svelteNpmPackage + "@" + ver
+	pkg := NpmPackage + "@" + ver
 	slog.Info("svelte: installing", "package", pkg, "root", root)
 
-	if err := ensureSvelteConfig(root); err != nil {
+	if err := EnsureConfig(root); err != nil {
 		return err
 	}
-	if err := ensureViteSvelteConfig(root); err != nil {
+	if err := EnsureViteConfig(root); err != nil {
 		return err
 	}
-	if err := ensureSvelteStarter(root); err != nil {
+	if err := EnsureStarter(root); err != nil {
 		return err
 	}
 
-	if err := installPackage(root, pkg, true); err != nil {
+	if err := plugin.InstallPackage(root, pkg, true); err != nil {
 		slog.Warn("svelte: package install failed, config files created", "err", err)
 		return err
 	}
-	_ = installPackage(root, sveltePluginPackage, true)
-	_ = installPackage(root, "vite", true)
+	_ = plugin.InstallPackage(root, PluginPackage, true)
+	_ = plugin.InstallPackage(root, "vite", true)
 
 	slog.Info("svelte: successfully installed", "package", pkg)
 	return nil
@@ -140,7 +138,7 @@ func (s *Svelte) Add(root, ver string) error {
 
 func (s *Svelte) Remove(root string) error {
 	slog.Info("svelte: removing", "root", root)
-	for _, name := range svelteConfigFiles {
+	for _, name := range ConfigFiles {
 		p := filepath.Join(root, name)
 		if _, err := os.Stat(p); err == nil {
 			_ = os.Remove(p)
@@ -156,37 +154,37 @@ func (s *Svelte) Remove(root string) error {
 		}
 	}
 
-	_ = uninstallPackage(root, svelteNpmPackage)
-	_ = uninstallPackage(root, sveltePluginPackage)
+	_ = plugin.UninstallPackage(root, NpmPackage)
+	_ = plugin.UninstallPackage(root, PluginPackage)
 	return nil
 }
 
-const svelteConfigTemplate = `import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+const ConfigTemplate = `import { vitePreprocess } from @sveltejs/vite-plugin-svelte;
 
 export default {
   preprocess: vitePreprocess(),
 };
 `
 
-const viteSvelteConfigTemplate = `import { defineConfig } from 'vite';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
+const ViteConfigTemplate = `import { defineConfig } from vite;
+import { svelte } from @sveltejs/vite-plugin-svelte;
 
 export default defineConfig({
   plugins: [svelte()],
   build: {
-    outDir: '.krewire/build/assets',
+    outDir: .krewire/build/assets,
     emptyOutDir: false,
     rollupOptions: {
       output: {
-        entryFileNames: 'svelte.js',
-        assetFileNames: 'svelte.[ext]',
+        entryFileNames: svelte.js,
+        assetFileNames: svelte.[ext],
       },
     },
   },
 });
 `
 
-const svelteStarterTemplate = `<script>
+const StarterTemplate = `<script>
   let count = $state(0);
 </script>
 
@@ -202,17 +200,17 @@ const svelteStarterTemplate = `<script>
 </div>
 `
 
-func ensureSvelteConfig(root string) error {
-	for _, name := range svelteConfigFiles {
+func EnsureConfig(root string) error {
+	for _, name := range ConfigFiles {
 		if _, err := os.Stat(filepath.Join(root, name)); err == nil {
 			return nil
 		}
 	}
-	p := filepath.Join(root, svelteConfigFile)
-	return os.WriteFile(p, []byte(svelteConfigTemplate), projectFilePerm)
+	p := filepath.Join(root, ConfigFile)
+	return os.WriteFile(p, []byte(ConfigTemplate), plugin.ProjectFilePerm)
 }
 
-func ensureViteSvelteConfig(root string) error {
+func EnsureViteConfig(root string) error {
 	viteConfigs := []string{"vite.config.js", "vite.config.ts", "vite.config.mjs"}
 	for _, name := range viteConfigs {
 		if _, err := os.Stat(filepath.Join(root, name)); err == nil {
@@ -220,84 +218,17 @@ func ensureViteSvelteConfig(root string) error {
 		}
 	}
 	p := filepath.Join(root, "vite.config.js")
-	return os.WriteFile(p, []byte(viteSvelteConfigTemplate), projectFilePerm)
+	return os.WriteFile(p, []byte(ViteConfigTemplate), plugin.ProjectFilePerm)
 }
 
-func ensureSvelteStarter(root string) error {
+func EnsureStarter(root string) error {
 	compDir := filepath.Join(root, "components")
-	if err := os.MkdirAll(compDir, projectDirPerm); err != nil {
+	if err := os.MkdirAll(compDir, plugin.ProjectDirPerm); err != nil {
 		return err
 	}
 	p := filepath.Join(compDir, "Counter.svelte")
 	if _, err := os.Stat(p); err == nil {
 		return nil
 	}
-	return os.WriteFile(p, []byte(svelteStarterTemplate), projectFilePerm)
-}
-
-func hasExtInDirs(root string, dirs []string, ext string) bool {
-	for _, d := range dirs {
-		dirPath := filepath.Join(root, d)
-		info, err := os.Stat(dirPath)
-		if err != nil || !info.IsDir() {
-			continue
-		}
-		found := false
-		_ = filepath.WalkDir(dirPath, func(path string, de os.DirEntry, err error) error {
-			if err != nil {
-				return nil
-			}
-			if de.IsDir() {
-				if de.Name() == "node_modules" || de.Name() == ".git" {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if strings.HasSuffix(strings.ToLower(de.Name()), ext) {
-				found = true
-				return filepath.SkipAll
-			}
-			return nil
-		})
-		if found {
-			return true
-		}
-	}
-	return false
-}
-
-func buildViteCandidateCommands(root, outDir string) [][]string {
-	var candidates [][]string
-	targetOut := filepath.Join(outDir, "assets")
-
-	// 1. Local node_modules
-	candidates = append(candidates,
-		[]string{"./node_modules/.bin/vite", "build", "--outDir", targetOut},
-	)
-
-	// 2. Standalone binary in project or PATH
-	if _, err := os.Stat(filepath.Join(root, "bin/vite")); err == nil {
-		candidates = append(candidates, []string{"./bin/vite", "build", "--outDir", targetOut})
-	}
-	if _, err := exec.LookPath("vite"); err == nil {
-		candidates = append(candidates, []string{"vite", "build", "--outDir", targetOut})
-	}
-
-	// 3. Bun runners
-	if _, err := exec.LookPath("bun"); err == nil {
-		candidates = append(candidates, []string{"bunx", "vite", "build", "--outDir", targetOut})
-	}
-
-	// 4. PNPM / Yarn runners
-	if _, err := exec.LookPath("pnpm"); err == nil {
-		candidates = append(candidates, []string{"pnpm", "exec", "vite", "build", "--outDir", targetOut})
-	}
-	if _, err := exec.LookPath("yarn"); err == nil {
-		candidates = append(candidates, []string{"yarn", "vite", "build", "--outDir", targetOut})
-	}
-
-	// 5. NPX fallback
-	candidates = append(candidates, []string{"npx", "vite", "build", "--outDir", targetOut})
-
-	return candidates
+	return os.WriteFile(p, []byte(StarterTemplate), plugin.ProjectFilePerm)
 }

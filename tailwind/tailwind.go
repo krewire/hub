@@ -1,4 +1,8 @@
-package plugin
+package tailwind
+
+import (
+	"github.com/krewire/hub/plugin"
+)
 
 import (
 	"fmt"
@@ -12,7 +16,7 @@ import (
 )
 
 func init() {
-	Register(&Tailwind{})
+	plugin.Register(&Tailwind{})
 }
 
 // Tailwind implements Plugin for Tailwind CSS via the Tailwind CLI.
@@ -33,13 +37,12 @@ const (
 	tailwindAssetPath = "assets/tailwind.css"
 	// projectDirPerm is the mode for directories Add and Build create.
 	projectDirPerm = 0o755
-	// projectFilePerm is the mode for the config and input files Add creates.
-	projectFilePerm = 0o644
+	// plugin.ProjectFilePerm is the mode for the config and input files Add creates.
 )
 
 // tailwindConfigFiles lists every config filename Detect recognises, in the order
 // Add prefers to keep an existing one.
-var tailwindConfigFiles = []string{
+var ConfigFiles = []string{
 	tailwindConfigFile,
 	"tailwind.config.cjs",
 	"tailwind.config.mjs",
@@ -59,7 +62,7 @@ func (t *Tailwind) Version() version.Version {
 
 func (t *Tailwind) Detect(root string) bool {
 	// 1. Check for standard Tailwind config files (Tailwind v3 & v4 legacy)
-	for _, name := range tailwindConfigFiles {
+	for _, name := range ConfigFiles {
 		if _, err := os.Stat(filepath.Join(root, name)); err == nil {
 			return true
 		}
@@ -275,7 +278,7 @@ func (t *Tailwind) Add(root, version string) error {
 	if err := ensureTailwindInput(root); err != nil {
 		return err
 	}
-	if err := installPackage(root, pkg, true); err != nil {
+	if err := plugin.InstallPackage(root, pkg, true); err != nil {
 		slog.Warn("tailwind: package install failed, config files still created", "err", err, "hint", "run npm/bun/pnpm install -D "+pkg+" manually")
 		return err
 	}
@@ -287,7 +290,7 @@ func (t *Tailwind) Add(root, version string) error {
 func (t *Tailwind) Remove(root string) error {
 	slog.Info("tailwind: removing", "root", root)
 	removed := 0
-	for _, name := range tailwindConfigFiles {
+	for _, name := range ConfigFiles {
 		p := filepath.Join(root, name)
 		if _, err := os.Stat(p); err == nil {
 			if err := os.Remove(p); err != nil {
@@ -307,7 +310,7 @@ func (t *Tailwind) Remove(root string) error {
 			slog.Info("tailwind: kept customized " + tailwindAssetPath)
 		}
 	}
-	if err := uninstallPackage(root, tailwindNpmPackage); err != nil {
+	if err := plugin.UninstallPackage(root, tailwindNpmPackage); err != nil {
 		slog.Warn("tailwind: package uninstall failed", "err", err)
 		return err
 	}
@@ -318,13 +321,13 @@ func (t *Tailwind) Remove(root string) error {
 }
 
 func ensureTailwindConfig(root string) error {
-	for _, name := range tailwindConfigFiles {
+	for _, name := range ConfigFiles {
 		if _, err := os.Stat(filepath.Join(root, name)); err == nil {
 			return nil
 		}
 	}
 	path := filepath.Join(root, tailwindConfigFile)
-	if err := os.WriteFile(path, []byte(tailwindConfigTemplate), projectFilePerm); err != nil {
+	if err := os.WriteFile(path, []byte(tailwindConfigTemplate), plugin.ProjectFilePerm); err != nil {
 		return fmt.Errorf("tailwind: write config: %w", err)
 	}
 	slog.Info("tailwind: created", "file", tailwindConfigFile)
@@ -339,7 +342,7 @@ func ensureTailwindInput(root string) error {
 	if err := os.MkdirAll(filepath.Dir(path), projectDirPerm); err != nil {
 		return fmt.Errorf("tailwind: mkdir assets: %w", err)
 	}
-	if err := os.WriteFile(path, []byte(tailwindInputTemplate), projectFilePerm); err != nil {
+	if err := os.WriteFile(path, []byte(tailwindInputTemplate), plugin.ProjectFilePerm); err != nil {
 		return fmt.Errorf("tailwind: write input: %w", err)
 	}
 	slog.Info("tailwind: created", "file", tailwindAssetPath)
@@ -347,104 +350,3 @@ func ensureTailwindInput(root string) error {
 }
 
 // detectPackageManager finds bun, pnpm, yarn, or npm based on lockfile presence and PATH.
-func detectPackageManager(root string) string {
-	if _, err := os.Stat(filepath.Join(root, "bun.lockb")); err == nil {
-		if _, err := exec.LookPath("bun"); err == nil {
-			return "bun"
-		}
-	}
-	if _, err := os.Stat(filepath.Join(root, "bun.lock")); err == nil {
-		if _, err := exec.LookPath("bun"); err == nil {
-			return "bun"
-		}
-	}
-	if _, err := os.Stat(filepath.Join(root, "pnpm-lock.yaml")); err == nil {
-		if _, err := exec.LookPath("pnpm"); err == nil {
-			return "pnpm"
-		}
-	}
-	if _, err := os.Stat(filepath.Join(root, "yarn.lock")); err == nil {
-		if _, err := exec.LookPath("yarn"); err == nil {
-			return "yarn"
-		}
-	}
-	if _, err := exec.LookPath("npm"); err == nil {
-		return "npm"
-	}
-	if _, err := exec.LookPath("bun"); err == nil {
-		return "bun"
-	}
-	if _, err := exec.LookPath("pnpm"); err == nil {
-		return "pnpm"
-	}
-	if _, err := exec.LookPath("yarn"); err == nil {
-		return "yarn"
-	}
-	return ""
-}
-
-func installPackage(root, pkg string, dev bool) error {
-	pm := detectPackageManager(root)
-	if pm == "" {
-		return fmt.Errorf("no package manager (npm, bun, pnpm, yarn) found in PATH")
-	}
-
-	var args []string
-	switch pm {
-	case "bun":
-		args = []string{"add", pkg}
-		if dev {
-			args = []string{"add", "-d", pkg}
-		}
-	case "pnpm":
-		args = []string{"add", pkg}
-		if dev {
-			args = []string{"add", "-D", pkg}
-		}
-	case "yarn":
-		args = []string{"add", pkg}
-		if dev {
-			args = []string{"add", "-D", pkg}
-		}
-	default: // npm
-		args = []string{"install", pkg}
-		if dev {
-			args = []string{"install", "-D", pkg}
-		}
-	}
-
-	cmd := exec.Command(pm, args...)
-	cmd.Dir = root
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s %s %s: %v: %s", pm, args[0], pkg, err, string(out))
-	}
-	return nil
-}
-
-func uninstallPackage(root, pkg string) error {
-	pm := detectPackageManager(root)
-	if pm == "" {
-		return fmt.Errorf("no package manager (npm, bun, pnpm, yarn) found in PATH")
-	}
-
-	var args []string
-	switch pm {
-	case "bun":
-		args = []string{"remove", pkg}
-	case "pnpm":
-		args = []string{"remove", pkg}
-	case "yarn":
-		args = []string{"remove", pkg}
-	default:
-		args = []string{"uninstall", pkg}
-	}
-
-	cmd := exec.Command(pm, args...)
-	cmd.Dir = root
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s %s %s: %v: %s", pm, args[0], pkg, err, string(out))
-	}
-	return nil
-}

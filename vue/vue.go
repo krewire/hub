@@ -1,4 +1,8 @@
-package plugin
+package vue
+
+import (
+	"github.com/krewire/hub/plugin"
+)
 
 import (
 	"fmt"
@@ -12,7 +16,7 @@ import (
 )
 
 func init() {
-	Register(&Vue{})
+	plugin.Register(&Vue{})
 }
 
 const (
@@ -70,7 +74,7 @@ func (v *Vue) Detect(root string) bool {
 
 	// 4. Check for .vue component files in standard source directories
 	candidateDirs := []string{"components", "src", "web", "pages"}
-	return hasExtInDirs(root, candidateDirs, ".vue")
+	return plugin.HasExtInDirs(root, candidateDirs, ".vue")
 }
 
 func (v *Vue) Build(root, outDir string) error {
@@ -78,7 +82,7 @@ func (v *Vue) Build(root, outDir string) error {
 		return nil
 	}
 
-	runners := buildViteCandidateCommands(root, outDir)
+	runners := plugin.BuildViteCandidateCommands(root, outDir)
 	var lastErr error
 	for _, args := range runners {
 		bin := args[0]
@@ -134,12 +138,12 @@ func (v *Vue) Add(root, ver string) error {
 		return err
 	}
 
-	if err := installPackage(root, pkg, true); err != nil {
+	if err := plugin.InstallPackage(root, pkg, true); err != nil {
 		slog.Warn("vue: package install failed, config files created", "err", err)
 		return err
 	}
-	_ = installPackage(root, vuePluginPackage, true)
-	_ = installPackage(root, "vite", true)
+	_ = plugin.InstallPackage(root, vuePluginPackage, true)
+	_ = plugin.InstallPackage(root, "vite", true)
 
 	slog.Info("vue: successfully installed", "package", pkg)
 	return nil
@@ -155,8 +159,8 @@ func (v *Vue) Remove(root string) error {
 		}
 	}
 
-	_ = uninstallPackage(root, vueNpmPackage)
-	_ = uninstallPackage(root, vuePluginPackage)
+	_ = plugin.UninstallPackage(root, vueNpmPackage)
+	_ = plugin.UninstallPackage(root, vuePluginPackage)
 	return nil
 }
 
@@ -213,17 +217,17 @@ func ensureViteVueConfig(root string) error {
 		}
 	}
 	p := filepath.Join(root, "vite.config.js")
-	return os.WriteFile(p, []byte(viteVueConfigTemplate), projectFilePerm)
+	return os.WriteFile(p, []byte(viteVueConfigTemplate), plugin.ProjectFilePerm)
 }
 
 func ensureVueStarter(root string) error {
 	compDir := filepath.Join(root, "components")
-	if err := os.MkdirAll(compDir, projectDirPerm); err != nil {
+	if err := os.MkdirAll(compDir, plugin.ProjectDirPerm); err != nil {
 		return err
 	}
 	p := filepath.Join(compDir, "Counter.vue")
 	if _, err := os.Stat(p); err == nil {
 		return nil
 	}
-	return os.WriteFile(p, []byte(vueStarterTemplate), projectFilePerm)
+	return os.WriteFile(p, []byte(vueStarterTemplate), plugin.ProjectFilePerm)
 }
