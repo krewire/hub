@@ -24,10 +24,13 @@ fix(tailwind): resolve asset output path in nested directories
 
 ## Quality Gates
 
-Every module must independently pass:
+Every module must independently pass the 4 mandatory quality gates:
 ```bash
+# 1. Code formatting
 gofmt -l .
-go vet ./...
-go test ./...
-CGO_ENABLED=0 go build ./...
+
+# 2. Static analysis, tests, and pure-Go build per module
+for m in mysql plugin postgres redis resolver sqlite svelte tailwind vue; do
+  (cd "$m" && go vet ./... && go test -v -race ./... && CGO_ENABLED=0 go build ./...)
+done
 ```

@@ -39,12 +39,16 @@ hub/
 
 ## Quality Gates
 
-Before contributing changes to `hub`:
+Before contributing changes to `hub`, run the mandatory quality gates across all 9 adapter modules:
 ```bash
+# 1. Formatting
 gofmt -l .        # Must return 0 lines
-go vet ./...      # Must exit code 0
-go test ./...     # All tests must pass
-CGO_ENABLED=0 go build ./... # Pure-Go compilation succeeds
+
+# 2. Per-module validation (or via CI matrix)
+for m in mysql plugin postgres redis resolver sqlite svelte tailwind vue; do
+  echo "==> Verifying module: $m"
+  (cd "$m" && go vet ./... && go test -v -race ./... && CGO_ENABLED=0 go build ./...)
+done
 ```
 
 ## License
